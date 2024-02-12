@@ -25,7 +25,6 @@ use {
         bank::Bank,
         bank_forks::BankForks,
         genesis_utils::{create_genesis_config_with_leader, GenesisConfigInfo},
-        runtime_config::RuntimeConfig,
         snapshot_archive_info::FullSnapshotArchiveInfo,
         snapshot_bank_utils::{self, DISABLED_SNAPSHOT_ARCHIVE_INTERVAL},
         snapshot_config::SnapshotConfig,
@@ -50,6 +49,7 @@ use {
         timing::timestamp,
     },
     solana_streamer::socket::SocketAddrSpace,
+    solana_svm::runtime_config::RuntimeConfig,
     std::{
         collections::HashSet,
         fs,
@@ -73,7 +73,7 @@ struct SnapshotTestConfig {
     full_snapshot_archives_dir: TempDir,
     bank_snapshots_dir: TempDir,
     accounts_dir: PathBuf,
-    // as the underscore prefix indicates, this isn't explictly used; but it's needed to keep
+    // as the underscore prefix indicates, this isn't explicitly used; but it's needed to keep
     // TempDir::drop from running to retain that dir for the duration of test
     _accounts_tmp_dir: TempDir,
 }
@@ -635,7 +635,7 @@ fn test_slots_to_snapshot(snapshot_version: SnapshotVersion, cluster_type: Clust
                 .unwrap()
                 .set_root(current_bank.slot(), &request_sender, None);
 
-            // Since the accounts background services are not runnning, EpochAccountsHash
+            // Since the accounts background services are not running, EpochAccountsHash
             // calculation requests will not be handled. To prevent banks from hanging during
             // Bank::freeze() due to waiting for EAH to complete, just set the EAH to Valid.
             let epoch_accounts_hash_manager = &current_bank
@@ -1044,8 +1044,6 @@ fn test_snapshots_with_background_services(
         accounts_package_receiver,
         Some(snapshot_package_sender),
         exit.clone(),
-        cluster_info,
-        None,
         snapshot_test_config.snapshot_config.clone(),
     );
 

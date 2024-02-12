@@ -879,6 +879,15 @@ pub fn app<'a>(version: &'a str, default_args: &'a DefaultArgs) -> App<'a, 'a> {
                 .help("Bigtable application profile id to use in requests")
         )
         .arg(
+            Arg::with_name("rpc_bigtable_max_message_size")
+                .long("rpc-bigtable-max-message-size")
+                .value_name("BYTES")
+                .validator(is_parsable::<usize>)
+                .takes_value(true)
+                .default_value(&default_args.rpc_bigtable_max_message_size)
+                .help("Max encoding and decoding message size used in Bigtable Grpc client"),
+        )
+        .arg(
             Arg::with_name("rpc_pubsub_worker_threads")
                 .long("rpc-pubsub-worker-threads")
                 .takes_value(true)
@@ -1035,6 +1044,15 @@ pub fn app<'a>(version: &'a str, default_args: &'a DefaultArgs) -> App<'a, 'a> {
                 .validator(|s| is_within_range(s, 1..=MAX_TRANSACTION_BATCH_SIZE))
                 .default_value(&default_args.rpc_send_transaction_batch_size)
                 .help("The size of transactions to be sent in batch."),
+        )
+        .arg(
+            Arg::with_name("rpc_send_transaction_retry_pool_max_size")
+                .long("rpc-send-transaction-retry-pool-max-size")
+                .value_name("NUMBER")
+                .takes_value(true)
+                .validator(is_parsable::<usize>)
+                .default_value(&default_args.rpc_send_transaction_retry_pool_max_size)
+                .help("The maximum size of transactions retry pool.")
         )
         .arg(
             Arg::with_name("rpc_scan_and_fix_roots")
@@ -1488,6 +1506,34 @@ pub fn app<'a>(version: &'a str, default_args: &'a DefaultArgs) -> App<'a, 'a> {
                         .help("Output display mode")
                 )
         )
+        .subcommand(SubCommand::with_name("repair-shred-from-peer")
+                .about("Request a repair from the specified validator")
+                .arg(
+                    Arg::with_name("pubkey")
+                        .long("pubkey")
+                        .value_name("PUBKEY")
+                        .required(false)
+                        .takes_value(true)
+                        .validator(is_pubkey)
+                        .help("Identity pubkey of the validator to repair from")
+                )
+                .arg(
+                    Arg::with_name("slot")
+                        .long("slot")
+                        .value_name("SLOT")
+                        .takes_value(true)
+                        .validator(is_parsable::<u64>)
+                        .help("Slot to repair")
+                )
+                .arg(
+                    Arg::with_name("shred")
+                        .long("shred")
+                        .value_name("SHRED")
+                        .takes_value(true)
+                        .validator(is_parsable::<u64>)
+                        .help("Shred to repair")
+                )
+        )
         .subcommand(
             SubCommand::with_name("repair-whitelist")
                 .about("Manage the validator's repair protocol whitelist")
@@ -1920,11 +1966,13 @@ pub struct DefaultArgs {
     pub rpc_send_transaction_leader_forward_count: String,
     pub rpc_send_transaction_service_max_retries: String,
     pub rpc_send_transaction_batch_size: String,
+    pub rpc_send_transaction_retry_pool_max_size: String,
     pub rpc_threads: String,
     pub rpc_niceness_adjustment: String,
     pub rpc_bigtable_timeout: String,
     pub rpc_bigtable_instance_name: String,
     pub rpc_bigtable_app_profile_id: String,
+    pub rpc_bigtable_max_message_size: String,
     pub rpc_max_request_body_size: String,
     pub rpc_pubsub_worker_threads: String,
 
@@ -2004,11 +2052,16 @@ impl DefaultArgs {
             rpc_send_transaction_batch_size: default_send_transaction_service_config
                 .batch_size
                 .to_string(),
+            rpc_send_transaction_retry_pool_max_size: default_send_transaction_service_config
+                .retry_pool_max_size
+                .to_string(),
             rpc_threads: num_cpus::get().to_string(),
             rpc_niceness_adjustment: "0".to_string(),
             rpc_bigtable_timeout: "30".to_string(),
             rpc_bigtable_instance_name: solana_storage_bigtable::DEFAULT_INSTANCE_NAME.to_string(),
             rpc_bigtable_app_profile_id: solana_storage_bigtable::DEFAULT_APP_PROFILE_ID
+                .to_string(),
+            rpc_bigtable_max_message_size: solana_storage_bigtable::DEFAULT_MAX_MESSAGE_SIZE
                 .to_string(),
             rpc_pubsub_worker_threads: "4".to_string(),
             accountsdb_repl_threads: num_cpus::get().to_string(),

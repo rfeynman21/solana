@@ -6,9 +6,6 @@ use {
         },
         accounts_index::{IndexKey, ScanConfig, ScanError, ScanResult, ZeroLamport},
         ancestors::Ancestors,
-        nonce_info::{NonceFull, NonceInfo},
-        rent_collector::RentCollector,
-        rent_debits::RentDebits,
         storable_accounts::StorableAccounts,
         transaction_results::TransactionExecutionResult,
     },
@@ -24,7 +21,9 @@ use {
             state::{DurableNonce, Versions as NonceVersions},
             State as NonceState,
         },
+        nonce_info::{NonceFull, NonceInfo},
         pubkey::Pubkey,
+        rent_debits::RentDebits,
         slot_hashes::SlotHashes,
         transaction::{Result, SanitizedTransaction, TransactionAccountLocks, TransactionError},
         transaction_context::{IndexOfAccount, TransactionAccount},
@@ -636,18 +635,8 @@ impl Accounts {
     ) {
         let keys: Vec<_> = txs
             .zip(results)
-            .filter_map(|(tx, res)| match res {
-                Err(TransactionError::AccountLoadedTwice)
-                | Err(TransactionError::AccountInUse)
-                | Err(TransactionError::SanitizeFailure)
-                | Err(TransactionError::TooManyAccountLocks)
-                | Err(TransactionError::WouldExceedMaxBlockCostLimit)
-                | Err(TransactionError::WouldExceedMaxVoteCostLimit)
-                | Err(TransactionError::WouldExceedMaxAccountCostLimit)
-                | Err(TransactionError::WouldExceedAccountDataBlockLimit)
-                | Err(TransactionError::WouldExceedAccountDataTotalLimit) => None,
-                _ => Some(tx.get_account_locks_unchecked()),
-            })
+            .filter(|(_, res)| res.is_ok())
+            .map(|(tx, _)| tx.get_account_locks_unchecked())
             .collect();
         let mut account_locks = self.account_locks.lock().unwrap();
         debug!("bank unlock accounts");
@@ -665,18 +654,11 @@ impl Accounts {
         txs: &[SanitizedTransaction],
         res: &[TransactionExecutionResult],
         loaded: &mut [TransactionLoadResult],
-        rent_collector: &RentCollector,
         durable_nonce: &DurableNonce,
         lamports_per_signature: u64,
     ) {
-        let (accounts_to_store, transactions) = self.collect_accounts_to_store(
-            txs,
-            res,
-            loaded,
-            rent_collector,
-            durable_nonce,
-            lamports_per_signature,
-        );
+        let (accounts_to_store, transactions) =
+            self.collect_accounts_to_store(txs, res, loaded, durable_nonce, lamports_per_signature);
         self.accounts_db
             .store_cached_inline_update_index((slot, &accounts_to_store[..]), Some(&transactions));
     }
@@ -699,7 +681,6 @@ impl Accounts {
         txs: &'a [SanitizedTransaction],
         execution_results: &'a [TransactionExecutionResult],
         load_results: &'a mut [TransactionLoadResult],
-        _rent_collector: &RentCollector,
         durable_nonce: &DurableNonce,
         lamports_per_signature: u64,
     ) -> (
@@ -823,10 +804,7 @@ fn prepare_if_nonce_account(
 mod tests {
     use {
         super::*,
-        crate::{
-            rent_collector::RentCollector,
-            transaction_results::{DurableNonceFee, TransactionExecutionDetails},
-        },
+        crate::transaction_results::{DurableNonceFee, TransactionExecutionDetails},
         assert_matches::assert_matches,
         solana_program_runtime::loaded_programs::LoadedProgramsForTxBatch,
         solana_sdk::{
@@ -1522,8 +1500,6 @@ mod tests {
         let account1 = AccountSharedData::new(2, 0, &Pubkey::default());
         let account2 = AccountSharedData::new(3, 0, &Pubkey::default());
 
-        let rent_collector = RentCollector::default();
-
         let instructions = vec![CompiledInstruction::new(2, &(), vec![0, 1])];
         let message = Message::new_with_compiled_instructions(
             1,
@@ -1591,7 +1567,6 @@ mod tests {
             &txs,
             &execution_results,
             loaded.as_mut_slice(),
-            &rent_collector,
             &DurableNonce::default(),
             0,
         );
@@ -1894,8 +1869,6 @@ mod tests {
 
     #[test]
     fn test_nonced_failure_accounts_rollback_from_pays() {
-        let rent_collector = RentCollector::default();
-
         let nonce_address = Pubkey::new_unique();
         let nonce_authority = keypair_from_seed(&[0; 32]).unwrap();
         let from = keypair_from_seed(&[1; 32]).unwrap();
@@ -1972,7 +1945,6 @@ mod tests {
             &txs,
             &execution_results,
             loaded.as_mut_slice(),
-            &rent_collector,
             &durable_nonce,
             0,
         );
@@ -2004,8 +1976,6 @@ mod tests {
 
     #[test]
     fn test_nonced_failure_accounts_rollback_nonce_pays() {
-        let rent_collector = RentCollector::default();
-
         let nonce_authority = keypair_from_seed(&[0; 32]).unwrap();
         let nonce_address = nonce_authority.pubkey();
         let from = keypair_from_seed(&[1; 32]).unwrap();
@@ -2081,7 +2051,6 @@ mod tests {
             &txs,
             &execution_results,
             loaded.as_mut_slice(),
-            &rent_collector,
             &durable_nonce,
             0,
         );
@@ -2108,7 +2077,7 @@ mod tests {
         let accounts = Accounts::new(Arc::new(accounts_db));
 
         /* This test assumes pubkey0 < pubkey1 < pubkey2.
-         * But the keys created with new_unique() does not gurantee this
+         * But the keys created with new_unique() does not guarantee this
          * order because of the endianness.  new_unique() calls add 1 at each
          * key generaration as the little endian integer.  A pubkey stores its
          * value in a 32-byte array bytes, and its eq-partial trait considers

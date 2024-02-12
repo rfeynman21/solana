@@ -26,7 +26,7 @@
 //! [`solana-client`]: https://docs.rs/solana-client
 //! [`solana-cli-config`]: https://docs.rs/solana-cli-config
 //! [`solana-clap-utils`]: https://docs.rs/solana-clap-utils
-//! [json]: https://docs.solana.com/developing/clients/jsonrpc-api
+//! [json]: https://solana.com/docs/rpc
 //! [`clap`]: https://docs.rs/clap
 
 #![allow(incomplete_features)]
@@ -69,6 +69,7 @@ pub mod ed25519_instruction;
 pub mod entrypoint;
 pub mod entrypoint_deprecated;
 pub mod epoch_info;
+pub mod epoch_rewards_hasher;
 pub mod example_mocks;
 pub mod exit;
 pub mod feature;
@@ -83,6 +84,7 @@ pub mod log;
 pub mod native_loader;
 pub mod net;
 pub mod nonce_account;
+pub mod nonce_info;
 pub mod offchain_message;
 pub mod packet;
 pub mod poh_config;
@@ -91,6 +93,9 @@ pub mod program_utils;
 pub mod pubkey;
 pub mod quic;
 pub mod recent_blockhashes_account;
+pub mod rent_collector;
+pub mod rent_debits;
+pub mod reward_info;
 pub mod reward_type;
 pub mod rpc_port;
 pub mod secp256k1_instruction;
